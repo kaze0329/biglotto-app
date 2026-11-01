@@ -5,6 +5,10 @@ on:
   push:
     branches: [ main, master ]
 
+env:
+  # 消除 Node.js 20 deprecated 警告，強制使用 Node.js 24
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: windows-latest
@@ -20,11 +24,11 @@ jobs:
       - name: 安裝套件與 PyInstaller
         run: |
           python -m pip install --upgrade pip
-          pip install pandas numpy matplotlib pyinstaller
+          python -m pip install numpy pandas matplotlib pyinstaller
 
       - name: 打包為單一免安裝 EXE 執行檔
         run: |
-          pyinstaller --noconsole --onefile --collect-all sklearn --collect-all scipy --name "台灣大樂透預測分析系統" biglotto_gui.py
+          python -m PyInstaller --noconsole --onefile --name "台灣大樂透預測分析系統" biglotto_gui.py
 
       - name: 產出下載包
         uses: actions/upload-artifact@v4
