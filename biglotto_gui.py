@@ -28,15 +28,14 @@ class BigLottoGUI:
     def __init__(self, root: tk.Tk, csv_path: str = "taiwan_biglotto_2004_2026.csv"):
         self.root = root
         self.csv_path = csv_path
-        self.root.title("台灣大樂透智慧預測與視覺化走勢分析系統 (目標：六獎 3+1 / 五獎 4+0 以上)")
+        self.root.title("台灣大樂透智慧預測與視覺化走勢系統 (全獎號整合評分版 - 單注直選 6 碼)")
         self.root.geometry("1460x880")
         self.root.minsize(1280, 780)
         self.root.configure(bg="#f0f2f5")
 
         self.num_cols = ["獎號1", "獎號2", "獎號3", "獎號4", "獎號5", "獎號6"]
+        self.all7_cols = self.num_cols + ["特別號"]
         self.df = self._load_or_init_data()
-
-        # 儲存最新運算結果供匯出使用
         self.latest_result = {}
 
         self._setup_styles()
@@ -47,11 +46,11 @@ class BigLottoGUI:
         """載入歷史 CSV 檔案，若不存在則建立空白結構"""
         if os.path.exists(self.csv_path):
             df = pd.read_csv(self.csv_path)
-            for col in self.num_cols + ["特別號"]:
+            for col in self.all7_cols:
                 df[col] = df[col].astype(int)
             return df
         else:
-            cols = ["開獎日期"] + self.num_cols + ["特別號"]
+            cols = ["開獎日期"] + self.all7_cols
             return pd.DataFrame(columns=cols)
 
     def _setup_styles(self):
@@ -69,7 +68,6 @@ class BigLottoGUI:
         style.configure("Treeview", font=("Consolas", 10), rowheight=25)
 
     def _build_ui(self):
-        # 主容器：左右分欄
         main_paned = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         main_paned.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
@@ -79,8 +77,8 @@ class BigLottoGUI:
         main_paned.add(right_panel, weight=5)
 
         # ==================== 左側面板 ====================
-        # 1. 手動輸入歷史獎號區
-        input_frame = ttk.LabelFrame(left_panel, text=" 📌 手動新增最新開獎獎號 (自動儲存至 CSV) ", padding=10)
+        # 1. 手動輸入歷史獎號區 (保留台彩開獎格式以維持完整歷史資料庫)
+        input_frame = ttk.LabelFrame(left_panel, text=" 📌 手動新增最新開獎紀錄 (自動整合至預測模型) ", padding=10)
         input_frame.pack(fill=tk.X, pady=(0, 8))
 
         row1 = ttk.Frame(input_frame)
@@ -88,7 +86,6 @@ class BigLottoGUI:
         ttk.Label(row1, text="開獎日期 (YYYY/MM/DD):").pack(side=tk.LEFT)
         self.date_var = tk.StringVar(value=datetime.now().strftime("%Y/%m/%d"))
         ttk.Entry(row1, textvariable=self.date_var, width=14, font=("Consolas", 10)).pack(side=tk.LEFT, padx=6)
-
         ttk.Button(row1, text="📂 載入其他 CSV", command=self.load_custom_csv).pack(side=tk.RIGHT)
 
         row2 = ttk.Frame(input_frame)
@@ -98,15 +95,15 @@ class BigLottoGUI:
         for var in self.num_vars:
             ttk.Entry(row2, textvariable=var, width=4, justify="center", font=("Consolas", 11, "bold")).pack(side=tk.LEFT, padx=2)
 
-        ttk.Label(row2, text=" 特別號:", foreground="#c0392b", font=("Microsoft JhengHei", 9, "bold")).pack(side=tk.LEFT, padx=(6, 2))
+        ttk.Label(row2, text=" 開獎特別號:", foreground="#c0392b", font=("Microsoft JhengHei", 9, "bold")).pack(side=tk.LEFT, padx=(6, 2))
         self.spec_var = tk.StringVar()
         ttk.Entry(row2, textvariable=self.spec_var, width=4, justify="center", font=("Consolas", 11, "bold"), foreground="#c0392b").pack(side=tk.LEFT, padx=2)
 
-        btn_add = ttk.Button(input_frame, text="＋ 新增獎號並更新模型", style="Success.TButton", command=self.add_new_draw)
+        btn_add = ttk.Button(input_frame, text="＋ 新增開獎獎號並更新模型", style="Success.TButton", command=self.add_new_draw)
         btn_add.pack(fill=tk.X, pady=(4, 0))
 
         # 2. 預測參數與操作按鈕區
-        param_frame = ttk.LabelFrame(left_panel, text=" ⚙️ 智慧縮水包牌參數設定 (目標：六獎 3+1 / 五獎 4+0) ", padding=10)
+        param_frame = ttk.LabelFrame(left_panel, text=" ⚙️ 智慧縮水包牌參數設定 (目標：六獎 3+1 / 五獎 4+0 以上) ", padding=10)
         param_frame.pack(fill=tk.X, pady=(0, 8))
 
         p_row = ttk.Frame(param_frame)
@@ -124,16 +121,16 @@ class BigLottoGUI:
         ttk.Button(b_row, text="⚡ 重新執行預測與繪圖", style="Primary.TButton", command=self.run_analysis_and_update).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(0, 4))
         ttk.Button(b_row, text="💾 匯出推薦組合 (.txt)", command=self.export_predictions).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(4, 0))
 
-        # 3. 預測結果顯示區
-        res_frame = ttk.LabelFrame(left_panel, text=" 🎯 下一期智慧預測與貪婪縮水包牌結果 ", padding=10)
+        # 3. 預測結果顯示區 (移除特別號獨立欄位，直接顯示單注 6 碼與結構指標)
+        res_frame = ttk.LabelFrame(left_panel, text=" 🎯 下一期智慧預測 6 碼包牌推薦 (已融合特別號動能權重) ", padding=10)
         res_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 8))
 
         self.info_label = ttk.Label(res_frame, text="運算中...", font=("Microsoft JhengHei", 9, "bold"), foreground="#16a085", justify=tk.LEFT)
         self.info_label.pack(fill=tk.X, pady=(0, 6))
 
-        cols = ("注別", "推薦6碼組合", "特別號建議", "總和", "單雙比", "大小比")
+        cols = ("注別", "推薦投注 6 碼組合", "6碼總和", "單雙比", "大小比", "連號對數")
         self.ticket_tree = ttk.Treeview(res_frame, columns=cols, show="headings", height=7)
-        col_widths = [45, 175, 75, 50, 55, 55]
+        col_widths = [50, 195, 60, 60, 60, 65]
         for c, w in zip(cols, col_widths):
             self.ticket_tree.heading(c, text=c)
             self.ticket_tree.column(c, width=w, anchor="center")
@@ -143,7 +140,7 @@ class BigLottoGUI:
         hist_frame = ttk.LabelFrame(left_panel, text=" 📜 近期歷史開獎紀錄 (最新 15 期) ", padding=10)
         hist_frame.pack(fill=tk.BOTH, expand=True)
 
-        h_cols = ("開獎日期", "一般獎號 (6碼)", "特別號", "6碼總和")
+        h_cols = ("開獎日期", "開獎獎號 (6碼)", "特別號", "6碼總和")
         self.hist_tree = ttk.Treeview(hist_frame, columns=h_cols, show="headings", height=6)
         h_widths = [95, 185, 60, 65]
         for c, w in zip(h_cols, h_widths):
@@ -156,7 +153,7 @@ class BigLottoGUI:
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
 
         # ==================== 右側視覺化面板 ====================
-        chart_frame = ttk.LabelFrame(right_panel, text=" 📊 大樂透多維度統計規律與動態走勢圖 (支援縮放與圖片儲存) ", padding=8)
+        chart_frame = ttk.LabelFrame(right_panel, text=" 📊 大樂透多維度統計規律與動態走勢圖 (全獎號整合分析) ", padding=8)
         chart_frame.pack(fill=tk.BOTH, expand=True)
 
         self.fig, self.axes = plt.subplots(2, 2, figsize=(9.5, 7.2), facecolor="#f8f9fa")
@@ -169,7 +166,7 @@ class BigLottoGUI:
         self.toolbar.update()
 
     def add_new_draw(self):
-        """驗證使用者手動輸入的獎號，寫入 CSV 並即時更新模型與圖表"""
+        """驗證手動輸入的開獎獎號，寫入 CSV 並即時更新模型與圖表"""
         date_str = self.date_var.get().strip()
         if not date_str:
             messagebox.showerror("輸入錯誤", "請輸入開獎日期 (格式如 2026/11/03)！")
@@ -179,16 +176,16 @@ class BigLottoGUI:
             nums = [int(v.get().strip()) for v in self.num_vars]
             spec = int(self.spec_var.get().strip())
         except ValueError:
-            messagebox.showerror("輸入錯誤", "請確保 6 個一般號與 1 個特別號皆為整數數字！")
+            messagebox.showerror("輸入錯誤", "請確保 6 個一般號與開獎特別號皆為整數數字！")
             return
 
         all_seven = nums + [spec]
         if any(n < 1 or n > 49 for n in all_seven):
-            messagebox.showerror("範圍錯誤", "所有獎號與特別號必須介於 1 到 49 之間！")
+            messagebox.showerror("範圍錯誤", "所有獎號必須介於 1 到 49 之間！")
             return
 
         if len(set(all_seven)) != 7:
-            messagebox.showerror("重複錯誤", "6 個一般號與特別號之間不可有重複的號碼！")
+            messagebox.showerror("重複錯誤", "同期的 6 個一般號與特別號之間不可有重複號碼！")
             return
 
         sorted_nums = sorted(nums)
@@ -203,17 +200,15 @@ class BigLottoGUI:
             "特別號": spec
         }])
 
-        # 將最新一期插入 DataFrame 最上方並存回 CSV
         self.df = pd.concat([new_row, self.df], ignore_index=True)
         self.df.to_csv(self.csv_path, index=False, encoding="utf-8-sig")
 
-        # 清空號碼輸入框
         for v in self.num_vars:
             v.set("")
         self.spec_var.set("")
 
         self.run_analysis_and_update()
-        messagebox.showinfo("新增成功", f"已成功新增 {date_str} 開獎紀錄：\n一般號：{sorted_nums} | 特別號：{spec:02d}\n預測模型與走勢圖已完成同步更新！")
+        messagebox.showinfo("新增成功", f"已成功新增 {date_str} 開獎紀錄！\n預測模型與走勢圖已完成同步更新。")
 
     def load_custom_csv(self):
         path = filedialog.askopenfilename(filetypes=[("CSV Files", "*.csv")])
@@ -223,38 +218,35 @@ class BigLottoGUI:
             self.run_analysis_and_update()
 
     def _compute_predictions(self, pool_size: int, num_tickets: int) -> dict:
-        """核心複合權重評分與貪婪縮水包牌演算法"""
+        """全獎號整合評分模型 (將一般號與特別號融合為單一動能指標，直接產出 6 碼組合)"""
         main_matrix = self.df[self.num_cols].values
         spec_array = self.df["特別號"].values
+        all7_matrix = self.df[self.all7_cols].values
 
-        # 1. 全歷史長線頻率 (35%)
-        all_counts = pd.Series(main_matrix.flatten()).value_counts()
-        freq_all = np.array([all_counts.get(n, 0) for n in range(1, 50)])
+        # 1. 全歷史長線整合頻率 (35%：一般號權重 1.0 + 特別號權重 0.8)
+        main_counts = pd.Series(main_matrix.flatten()).value_counts()
+        spec_counts = pd.Series(spec_array).value_counts()
+        freq_all = np.array([main_counts.get(n, 0) + 0.8 * spec_counts.get(n, 0) for n in range(1, 50)])
         norm_all = (freq_all - freq_all.min()) / (freq_all.max() - freq_all.min() + 1e-6)
 
-        # 2. 近 30 期短期動能 (45%)
-        recent_counts = pd.Series(main_matrix[:30].flatten()).value_counts()
-        freq_rec = np.array([recent_counts.get(n, 0) for n in range(1, 50)])
+        # 2. 近 30 期短期整合動能 (45%：一般號權重 1.0 + 特別號權重 0.8)
+        rec_main = pd.Series(main_matrix[:30].flatten()).value_counts()
+        rec_spec = pd.Series(spec_array[:30]).value_counts()
+        freq_rec = np.array([rec_main.get(n, 0) + 0.8 * rec_spec.get(n, 0) for n in range(1, 50)])
         norm_rec = (freq_rec - freq_rec.min()) / (freq_rec.max() - freq_rec.min() + 1e-6)
 
-        # 3. 遺漏期數高斯回補評分 (20%，峰值設於遺漏 7 期)
+        # 3. 全 7 碼遺漏期數高斯回補評分 (20%，峰值設於遺漏 6 期)
         gaps = np.zeros(49)
         for n in range(1, 50):
-            found = np.where((main_matrix == n).any(axis=1))[0]
+            found = np.where((all7_matrix == n).any(axis=1))[0]
             gaps[n - 1] = found[0] if len(found) > 0 else len(self.df)
-        gap_score = np.exp(-((gaps - 7.0) ** 2) / (2 * 5.0 ** 2))
+        gap_score = np.exp(-((gaps - 6.0) ** 2) / (2 * 4.5 ** 2))
 
-        # 4. 上期連莊加分 (+0.18，歷史實證 56.28% 期數含連莊號)
-        last_draw_set = set(main_matrix[0])
+        # 4. 上期全 7 碼連莊加分 (+0.18)
+        last_draw_set = set(all7_matrix[0])
         repeat_bonus = np.array([0.18 if n in last_draw_set else 0.0 for n in range(1, 50)])
 
         total_score = 0.35 * norm_all + 0.45 * norm_rec + 0.20 * gap_score + repeat_bonus
-
-        # 特別號獨立加權積分
-        spec_all = pd.Series(spec_array).value_counts()
-        spec_rec = pd.Series(spec_array[:100]).value_counts()
-        spec_scores = {n: spec_all.get(n, 0) * 0.6 + spec_rec.get(n, 0) * 2.5 for n in range(1, 50)}
-        top_specials = [k for k, v in sorted(spec_scores.items(), key=lambda x: x[1], reverse=True)]
 
         ranked_nums = [int(i + 1) for i in np.argsort(total_score)[::-1]]
         candidate_pool = sorted(ranked_nums[:pool_size])
@@ -277,9 +269,9 @@ class BigLottoGUI:
         if len(valid_combos) < num_tickets:
             valid_combos = all_possible
 
-        # 近 300 期雙連碼共現矩陣
+        # 近 300 期全 7 碼雙連碼共現矩陣
         pair_counter = Counter()
-        for row in main_matrix[:300]:
+        for row in all7_matrix[:300]:
             for p in combinations(sorted(row), 2):
                 pair_counter[p] += 1
 
@@ -305,9 +297,8 @@ class BigLottoGUI:
         return {
             "total_score": total_score,
             "gaps": gaps,
-            "spec_scores": spec_scores,
+            "pair_counter": pair_counter,
             "candidate_pool": candidate_pool,
-            "top_specials": top_specials[:3],
             "tickets": selected_tickets,
             "coverage_pct": coverage_pct
         }
@@ -322,31 +313,32 @@ class BigLottoGUI:
         res = self._compute_predictions(pool_size, num_tickets)
         self.latest_result = res
 
-        # 1. 更新上方指標文字
         pool_str = ", ".join(f"{n:02d}" for n in res["candidate_pool"])
-        spec_str = ", ".join(f"{n:02d}" for n in res["top_specials"])
         latest_date = self.df.iloc[0]["開獎日期"]
         self.info_label.config(
             text=(
                 f"📊 歷史樣本數：{len(self.df)} 期 (最新：{latest_date})  |  3碼縮水覆蓋率：{res['coverage_pct']:.1f}%\n"
-                f"🔥 精選 {pool_size} 碼主候選池：[{pool_str}]\n"
-                f"⭐ 特別號高頻 Top 3：[{spec_str}] (建議搭配鎖定六獎 3+1)"
+                f"🔥 精選 {pool_size} 碼整合主候選池 (已融合一般號+特別號權重)：\n"
+                f"   [{pool_str}]"
             )
         )
 
-        # 2. 更新推薦注數 Treeview
+        # 更新推薦注數 Treeview (無獨立特別號欄位)
         for item in self.ticket_tree.get_children():
             self.ticket_tree.delete(item)
 
         for idx, t in enumerate(res["tickets"], 1):
             t_str = "  ".join(f"{n:02d}" for n in t)
-            sp_pick = f"{res['top_specials'][(idx - 1) % len(res['top_specials'])]:02d}"
             s_val = sum(t)
             odds = sum(1 for n in t if n % 2 == 1)
             highs = sum(1 for n in t if n >= 25)
-            self.ticket_tree.insert("", tk.END, values=(f"第 {idx:02d} 注", t_str, sp_pick, s_val, f"{odds}:{6-odds}", f"{highs}:{6-highs}"))
+            consec = sum(1 for i in range(5) if t[i + 1] - t[i] == 1)
+            self.ticket_tree.insert(
+                "", tk.END,
+                values=(f"第 {idx:02d} 注", t_str, s_val, f"{odds}:{6-odds}", f"{highs}:{6-highs}", f"{consec} 組")
+            )
 
-        # 3. 更新歷史紀錄 Treeview (顯示最新 15 期)
+        # 更新歷史紀錄 Treeview
         for item in self.hist_tree.get_children():
             self.hist_tree.delete(item)
 
@@ -355,7 +347,6 @@ class BigLottoGUI:
             n_str = " ".join(f"{n:02d}" for n in nums)
             self.hist_tree.insert("", tk.END, values=(row["開獎日期"], n_str, f"{int(row['特別號']):02d}", sum(nums)))
 
-        # 4. 更新右側四合一走勢圖
         self._update_charts(res)
 
     def _update_charts(self, res: dict):
@@ -365,11 +356,11 @@ class BigLottoGUI:
         main_matrix = self.df[self.num_cols].values
         cand_set = set(res["candidate_pool"])
 
-        # 圖 1：1~49號 綜合動能評分
+        # 圖 1：1~49號 綜合動能評分 (整合一般號+特別號)
         ax1 = self.axes[0, 0]
         colors1 = ["#e74c3c" if (i + 1) in cand_set else "#bdc3c7" for i in range(49)]
         ax1.bar(range(1, 50), res["total_score"], color=colors1)
-        ax1.set_title(f"1~49號 綜合動能評分 (紅色：入選 {len(cand_set)} 碼主候選池)", fontsize=10, fontweight="bold")
+        ax1.set_title(f"1~49號 綜合動能評分 (全獎號整合，紅色：{len(cand_set)} 碼候選池)", fontsize=10, fontweight="bold")
         ax1.set_xlabel("獎號 (1~49)", fontsize=8)
         ax1.set_ylabel("綜合權重分數", fontsize=8)
         ax1.grid(axis="y", linestyle="--", alpha=0.4)
@@ -388,31 +379,33 @@ class BigLottoGUI:
         ax2.legend(loc="upper right", fontsize=7)
         ax2.grid(linestyle="--", alpha=0.4)
 
-        # 圖 3：1~49號 當前遺漏期數走勢
+        # 圖 3：1~49號 當前遺漏期數 (全7碼合併計算)
         ax3 = self.axes[1, 0]
         gaps = res["gaps"]
-        gap_colors = ["#e67e22" if 4 <= g <= 10 else "#95a5a6" for g in gaps]
+        gap_colors = ["#e67e22" if 3 <= g <= 9 else "#95a5a6" for g in gaps]
         ax3.bar(range(1, 50), gaps, color=gap_colors)
-        ax3.axhspan(4, 10, color="#f39c12", alpha=0.15, label="黃金回補期 (4~10期未開)")
+        ax3.axhspan(3, 9, color="#f39c12", alpha=0.15, label="黃金回補期 (3~9期未開)")
         ax3.set_title("1~49號 當前遺漏期數 (橘色：處於黃金回補區間)", fontsize=10, fontweight="bold")
         ax3.set_xlabel("獎號 (1~49)", fontsize=8)
         ax3.set_ylabel("連續未開期數", fontsize=8)
         ax3.legend(loc="upper right", fontsize=7)
         ax3.grid(axis="y", linestyle="--", alpha=0.4)
 
-        # 圖 4：特別號加權動能 Top 12
+        # 圖 4：近 300 期最強雙連碼共現排行 Top 12
         ax4 = self.axes[1, 1]
-        spec_series = pd.Series(res["spec_scores"]).sort_values(ascending=False).head(12)
-        ax4.barh([f"{int(k):02d}號" for k in spec_series.index[::-1]], spec_series.values[::-1], color="#8e44ad")
-        ax4.set_title("特別號加權動能 Top 12 (衝刺六獎 3+1 關鍵)", fontsize=10, fontweight="bold")
-        ax4.set_xlabel("加權積分 (歷史0.6 + 近百期2.5)", fontsize=8)
+        top_pairs = res["pair_counter"].most_common(12)
+        pair_labels = [f"{p[0]:02d}-{p[1]:02d}" for p, _ in top_pairs][::-1]
+        pair_vals = [cnt for _, cnt in top_pairs][::-1]
+        ax4.barh(pair_labels, pair_vals, color="#16a085")
+        ax4.set_title("近 300 期最強雙連碼共現排行 Top 12 (同框開出次數)", fontsize=10, fontweight="bold")
+        ax4.set_xlabel("同框出現次數", fontsize=8)
         ax4.grid(axis="x", linestyle="--", alpha=0.4)
 
         self.fig.tight_layout()
         self.canvas.draw()
 
     def export_predictions(self):
-        """將當前推薦結果匯出為文字檔"""
+        """將當前推薦結果匯出為文字檔 (無獨立特別號)"""
         if not self.latest_result:
             return
         save_path = filedialog.asksaveasfilename(
@@ -429,16 +422,16 @@ class BigLottoGUI:
             f" 台灣大樂透 智慧縮水包牌推薦報告 ({datetime.now().strftime('%Y-%m-%d %H:%M')})",
             f" 歷史資料期數：共 {len(self.df)} 期 (最新一期：{self.df.iloc[0]['開獎日期']})",
             "==========================================================",
-            f"【精選主候選池】：{', '.join(f'{n:02d}' for n in res['candidate_pool'])}",
-            f"【特別號 Top 3】：{', '.join(f'{n:02d}' for n in res['top_specials'])}",
-            f"【3碼組合覆蓋率】：{res['coverage_pct']:.2f}%",
+            f"【精選整合主候選池】：{', '.join(f'{n:02d}' for n in res['candidate_pool'])}",
+            f"【3碼組合縮水覆蓋率】：{res['coverage_pct']:.2f}%",
             "----------------------------------------------------------",
         ]
         for idx, t in enumerate(res["tickets"], 1):
             t_str = ", ".join(f"{n:02d}" for n in t)
             odds = sum(1 for n in t if n % 2 == 1)
             highs = sum(1 for n in t if n >= 25)
-            lines.append(f"第 {idx:02d} 注：[{t_str}] | 總和:{sum(t):3d} | 奇偶:{odds}:{6-odds} | 大小:{highs}:{6-highs}")
+            consec = sum(1 for i in range(5) if t[i + 1] - t[i] == 1)
+            lines.append(f"第 {idx:02d} 注：[{t_str}] | 總和:{sum(t):3d} | 奇偶:{odds}:{6-odds} | 大小:{highs}:{6-highs} | 連號:{consec}組")
         lines.append("==========================================================")
 
         with open(save_path, "w", encoding="utf-8") as f:
