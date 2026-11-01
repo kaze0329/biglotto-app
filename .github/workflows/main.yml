@@ -24,7 +24,7 @@ jobs:
 
       - name: 打包為單一免安裝 EXE 執行檔
         run: |
-          pyinstaller --noconsole --onefile --name "台灣大樂透預測分析系統" biglotto_gui.py
+          pyinstaller --noconsole --onefile --hidden-import=sklearn.ensemble --hidden-import=sklearn.utils --hidden-import=scikit-learn --name "台灣大樂透預測分析系統" biglotto_gui.py
 
       - name: 產出下載包
         uses: actions/upload-artifact@v4
