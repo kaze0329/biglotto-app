@@ -27,7 +27,7 @@ jobs:
         shell: cmd
         run: |
           dir
-          python -m PyInstaller --noconsole --onefile --clean --name "BigLottoPredictor" biglotto_gui.py
+          python -m PyInstaller --onefile --clean --collect-all matplotlib --collect-all pandas --name "BigLottoPredictor" biglotto_gui.py
 
       - name: Upload EXE Artifact
         uses: actions/upload-artifact@v5
